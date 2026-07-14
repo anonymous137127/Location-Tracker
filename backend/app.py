@@ -5,66 +5,107 @@ from datetime import datetime
 import os
 
 app = Flask(__name__)
+
+# Allow requests from any origin.
+# For production, you can replace "*" with your Netlify domain.
 CORS(app)
 
-# Read MongoDB connection string from Render environment variable
+# MongoDB Connection
 MONGO_URI = os.getenv("MONGO_URI")
 
 if not MONGO_URI:
-    raise Exception("MONGO_URI environment variable is not set.")
+    raise RuntimeError("MONGO_URI environment variable is not set.")
 
 client = MongoClient(MONGO_URI)
 
 db = client["location_tracker"]
-collection = db["locations"]
+locations_collection = db["locations"]
 
 
-@app.route("/")
+@app.route("/", methods=["GET"])
 def home():
     return jsonify({
-        "status": "running",
-        "message": "Location API is working"
+        "status": "online",
+        "database": "MongoDB Connected",
+        "message": "Location Tracker API Running"
     })
 
 
 @app.route("/location", methods=["POST"])
-def location():
+def save_location():
+    try:
+        data = request.get_json()
 
-    data = request.get_json()
+        if not data:
+            return jsonify({
+                "success": False,
+                "message": "No JSON data received."
+            }), 400
 
-    location_data = {
-        "latitude": data.get("latitude"),
-        "longitude": data.get("longitude"),
-        "accuracy": data.get("accuracy"),
-        "timestamp": data.get("timestamp"),
-        "received_at": datetime.utcnow().isoformat() + "Z",
-        "ip_address": request.headers.get("X-Forwarded-For", request.remote_addr),
-        "user_agent": request.headers.get("User-Agent")
-    }
+        location = {
+            "latitude": data.get("latitude"),
+            "longitude": data.get("longitude"),
+            "accuracy": data.get("accuracy"),
+            "timestamp": data.get("timestamp"),
+            "received_at": datetime.utcnow().isoformat() + "Z",
+            "ip_address": request.headers.get(
+                "X-Forwarded-For",
+                request.remote_addr
+            ),
+            "user_agent": request.headers.get("User-Agent")
+        }
 
-    # Save to MongoDB
-    collection.insert_one(location_data)
+        result = locations_collection.insert_one(location)
 
-    # Print to Render logs
-    print("=" * 60, flush=True)
-    print("📍 New Location Received", flush=True)
-    print(location_data, flush=True)
-    print("=" * 60, flush=True)
+        print("=" * 60, flush=True)
+        print("📍 New Location Saved", flush=True)
+        print(location, flush=True)
+        print("=" * 60, flush=True)
 
-    return jsonify({
-        "success": True,
-        "message": "Location stored successfully."
-    })
+        return jsonify({
+            "success": True,
+            "message": "Location saved successfully.",
+            "id": str(result.inserted_id)
+        })
+
+    except Exception as e:
+        print(str(e), flush=True)
+
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
 
 @app.route("/locations", methods=["GET"])
 def get_locations():
 
-    locations = list(collection.find({}, {"_id": 0}))
+    locations = []
+
+    for doc in locations_collection.find():
+
+        locations.append({
+            "id": str(doc["_id"]),
+            "latitude": doc.get("latitude"),
+            "longitude": doc.get("longitude"),
+            "accuracy": doc.get("accuracy"),
+            "timestamp": doc.get("timestamp"),
+            "received_at": doc.get("received_at"),
+            "ip_address": doc.get("ip_address"),
+            "user_agent": doc.get("user_agent")
+        })
 
     return jsonify({
+        "success": True,
         "count": len(locations),
         "locations": locations
+    })
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "healthy"
     })
 
 
