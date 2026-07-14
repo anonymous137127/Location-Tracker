@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: location-tracker-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
