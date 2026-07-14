@@ -57,6 +57,73 @@ def home():
     })
 
 
+@app.route("/selfie", methods=["POST"])
+def save_selfie():
+    """
+    Receives a selfie image from the frontend (captured BEFORE location).
+    Accepts both:
+      - multipart/form-data with an 'image' field (file upload)
+      - JSON with a base64-encoded 'image' field
+    
+    Returns the selfie ID so the frontend can include it with the location.
+    """
+    try:
+        image_data = None
+        timestamp = datetime.utcnow().isoformat() + "Z"
+
+        # Check if it's a multipart file upload
+        if request.files:
+            file = request.files.get("image")
+            if file:
+                image_data = base64.b64encode(file.read()).decode("utf-8")
+                timestamp = request.form.get("timestamp", timestamp)
+
+        # Check if it's a JSON payload with base64 image
+        if not image_data and request.is_json:
+            data = request.get_json()
+            if data and data.get("image"):
+                image_data = data["image"]
+                timestamp = data.get("timestamp", timestamp)
+
+        if not image_data:
+            return jsonify({
+                "success": False,
+                "message": "No image data received."
+            }), 400
+
+        selfie_record = {
+            "image_base64": image_data,
+            "timestamp": timestamp,
+            "location_id": None,  # Will be updated when location arrives
+            "received_at": datetime.utcnow().isoformat() + "Z",
+            "ip_address": request.headers.get(
+                "X-Forwarded-For",
+                request.remote_addr
+            ),
+            "user_agent": request.headers.get("User-Agent")
+        }
+
+        result = selfies_collection.insert_one(selfie_record)
+
+        print("=" * 60, flush=True)
+        print("New selfie saved (pending location)", flush=True)
+        print(f"ID: {result.inserted_id} | Timestamp: {timestamp}", flush=True)
+        print("=" * 60, flush=True)
+
+        return jsonify({
+            "success": True,
+            "message": "Selfie uploaded successfully.",
+            "id": str(result.inserted_id)
+        })
+
+    except Exception as e:
+        print(e, flush=True)
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
 @app.route("/location", methods=["POST"])
 def save_location():
     try:
@@ -78,13 +145,13 @@ def save_location():
 
         latitude = data.get("latitude")
         longitude = data.get("longitude")
+        selfie_id = data.get("selfie_id")  # ID of selfie captured earlier
 
         location = {
             "latitude": latitude,
             "longitude": longitude,
             "accuracy": data.get("accuracy"),
-            "photo": None,  # Will be updated when selfie is uploaded
-            "selfie_id": None,  # Will store the selfie record ID
+            "selfie_id": selfie_id,
             "timestamp": data.get("timestamp"),
             "received_at": datetime.utcnow().isoformat() + "Z",
             "ip_address": request.headers.get(
@@ -96,6 +163,13 @@ def save_location():
         }
 
         result = locations_collection.insert_one(location)
+
+        # Update the selfie record with the location ID
+        if selfie_id:
+            selfies_collection.update_one(
+                {"_id": ObjectId(selfie_id)},
+                {"$set": {"location_id": str(result.inserted_id)}}
+            )
 
         print("=" * 60, flush=True)
         print("New location saved", flush=True)
@@ -117,96 +191,26 @@ def save_location():
         }), 500
 
 
-@app.route("/selfie", methods=["POST"])
-def save_selfie():
-    """
-    Receives a selfie image from the frontend and links it to a location record.
-    Accepts both:
-      - multipart/form-data with an 'image' field (file upload)
-      - JSON with a base64-encoded 'image' field
-    """
-    try:
-        image_data = None
-        timestamp = datetime.utcnow().isoformat() + "Z"
-        location_id = None
-
-        # Check if it's a multipart file upload
-        if request.files:
-            file = request.files.get("image")
-            if file:
-                image_data = base64.b64encode(file.read()).decode("utf-8")
-                timestamp = request.form.get("timestamp", timestamp)
-                location_id = request.form.get("location_id")
-
-        # Check if it's a JSON payload with base64 image
-        if not image_data and request.is_json:
-            data = request.get_json()
-            if data and data.get("image"):
-                image_data = data["image"]
-                timestamp = data.get("timestamp", timestamp)
-                location_id = data.get("location_id")
-
-        if not image_data:
-            return jsonify({
-                "success": False,
-                "message": "No image data received."
-            }), 400
-
-        selfie_record = {
-            "image_base64": image_data,
-            "timestamp": timestamp,
-            "location_id": location_id,
-            "received_at": datetime.utcnow().isoformat() + "Z",
-            "ip_address": request.headers.get(
-                "X-Forwarded-For",
-                request.remote_addr
-            ),
-            "user_agent": request.headers.get("User-Agent")
-        }
-
-        result = selfies_collection.insert_one(selfie_record)
-
-        # If a location_id was provided, update the location document with the selfie
-        if location_id:
-            locations_collection.update_one(
-                {"_id": ObjectId(location_id)},
-                {"$set": {
-                    "photo": image_data,
-                    "selfie_id": str(result.inserted_id)
-                }}
-            )
-
-        print("=" * 60, flush=True)
-        print("New selfie saved", flush=True)
-        print(f"ID: {result.inserted_id} | Location ID: {location_id} | Timestamp: {timestamp}", flush=True)
-        print("=" * 60, flush=True)
-
-        return jsonify({
-            "success": True,
-            "message": "Selfie uploaded successfully.",
-            "id": str(result.inserted_id)
-        })
-
-    except Exception as e:
-        print(e, flush=True)
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
-
-
 @app.route("/locations", methods=["GET"])
 @require_api_key
 def get_locations():
     locations = []
 
     for doc in locations_collection.find():
+        # Fetch the selfie image if a selfie_id exists
+        photo = None
+        selfie_id = doc.get("selfie_id")
+        if selfie_id:
+            selfie_doc = selfies_collection.find_one({"_id": ObjectId(selfie_id)})
+            if selfie_doc:
+                photo = selfie_doc.get("image_base64")
+
         locations.append({
             "id": str(doc["_id"]),
             "latitude": doc.get("latitude"),
             "longitude": doc.get("longitude"),
             "accuracy": doc.get("accuracy"),
-            "photo": doc.get("photo"),  # Now contains the selfie base64 data
+            "photo": photo,
             "selfie_id": doc.get("selfie_id"),
             "timestamp": doc.get("timestamp"),
             "received_at": doc.get("received_at"),
