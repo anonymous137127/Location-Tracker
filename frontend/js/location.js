@@ -52,7 +52,9 @@ button.addEventListener("click", () => {
                 });
 
                 if (!response.ok) {
-                    setStatus("❌ Server error while sharing location.");
+                    const error = await response.text();
+                    console.log(error);
+                    setStatus("❌ " + error);
                     button.disabled = false;
                     return;
                 }
