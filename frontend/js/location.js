@@ -2,7 +2,7 @@ const button = document.getElementById("shareLocation");
 const status = document.getElementById("status");
 
 // Replace this with your Render backend URL
-const API_URL = "https://YOUR-RENDER-APP.onrender.com/location";
+const API_URL = "https://location-tracker-api-cjka.onrender.com/location";
 
 button.addEventListener("click", () => {
 
