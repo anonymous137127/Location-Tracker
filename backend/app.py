@@ -1,20 +1,22 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import json
-import os
+from pymongo import MongoClient
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-DATA_FOLDER = "data"
-DATA_FILE = os.path.join(DATA_FOLDER, "locations.json")
+# Read MongoDB connection string from Render environment variable
+MONGO_URI = os.getenv("MONGO_URI")
 
-os.makedirs(DATA_FOLDER, exist_ok=True)
+if not MONGO_URI:
+    raise Exception("MONGO_URI environment variable is not set.")
 
-if not os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "w") as f:
-        json.dump([], f)
+client = MongoClient(MONGO_URI)
+
+db = client["location_tracker"]
+collection = db["locations"]
 
 
 @app.route("/")
@@ -40,19 +42,31 @@ def location():
         "user_agent": request.headers.get("User-Agent")
     }
 
-    with open(DATA_FILE, "r") as f:
-        locations = json.load(f)
+    # Save to MongoDB
+    collection.insert_one(location_data)
 
-    locations.append(location_data)
-
-    with open(DATA_FILE, "w") as f:
-        json.dump(locations, f, indent=4)
+    # Print to Render logs
+    print("=" * 60, flush=True)
+    print("📍 New Location Received", flush=True)
+    print(location_data, flush=True)
+    print("=" * 60, flush=True)
 
     return jsonify({
         "success": True,
-        "message": "Location received."
+        "message": "Location stored successfully."
+    })
+
+
+@app.route("/locations", methods=["GET"])
+def get_locations():
+
+    locations = list(collection.find({}, {"_id": 0}))
+
+    return jsonify({
+        "count": len(locations),
+        "locations": locations
     })
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
