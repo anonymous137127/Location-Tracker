@@ -31,38 +31,6 @@
             </div>
         </div>
 
-        <!-- Permission progress indicators -->
-        <div id="permissionProgress" style="display:none;">
-            <div id="stepCamera" style="display:flex; align-items:center; gap:10px; padding:10px 16px; margin:8px 0; border-radius:8px; background:#fff; border:1px solid #e0e0e0; font-size:14px;">
-                <span>📷</span>
-                <span>Camera Access</span>
-                <span style="margin-left:auto; font-weight:500;">Waiting...</span>
-            </div>
-            <div id="stepLocation" style="display:flex; align-items:center; gap:10px; padding:10px 16px; margin:8px 0; border-radius:8px; background:#fff; border:1px solid #e0e0e0; font-size:14px;">
-                <span>📍</span>
-                <span>Location Access</span>
-                <span style="margin-left:auto; font-weight:500;">Waiting...</span>
-            </div>
-        </div>
-
-        <hr>
-
-        <!-- Camera section – shown after camera permission granted -->
-        <div id="cameraPermissionSection" style="display:none;">
-            <h3>📷 Selfie Verification</h3>
-            <p>Camera access granted!</p>
-        </div>
-
-        <video id="video" autoplay playsinline
-                style="display:none; width:100%; border-radius:10px; margin-top:15px;">
-        </video>
-
-        <canvas id="canvas" style="display:none;"></canvas>
-
-        <button id="captureBtn" style="display:none; margin-top:15px;">
-            📷 Capture Selfie
-        </button>
-
     </div>
 
     <script src="js/location.js"></script>

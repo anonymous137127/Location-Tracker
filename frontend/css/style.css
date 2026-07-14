@@ -60,48 +60,11 @@ h1 {
     margin-bottom: 10px;
 }
 
-h3 {
-    margin-top: 22px;
-    margin-bottom: 12px;
-    font-size: 15px;
-    font-weight: 600;
-    color: #374151;
-}
-
 p {
     color: var(--color-text-muted);
     font-size: 14.5px;
     line-height: 1.6;
     margin-bottom: 20px;
-}
-
-/* Consent notice + checkbox */
-.consent {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    text-align: left;
-    background: #f8fafc;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    padding: 14px 16px;
-    margin-bottom: 20px;
-}
-
-.consent input[type="checkbox"] {
-    margin-top: 3px;
-    width: 18px;
-    height: 18px;
-    accent-color: var(--color-primary);
-    flex-shrink: 0;
-    cursor: pointer;
-}
-
-.consent label {
-    font-size: 13.5px;
-    line-height: 1.5;
-    color: #374151;
-    cursor: pointer;
 }
 
 button {
@@ -143,46 +106,6 @@ button:focus-visible {
     word-wrap: break-word;
     min-height: 20px;
     transition: color 0.2s ease;
-}
-
-hr {
-    margin: 25px 0;
-    border: none;
-    border-top: 1px solid var(--color-border);
-}
-
-#video {
-    width: 100%;
-    border-radius: 12px;
-    border: 3px solid var(--color-primary);
-    display: none;
-    margin-top: 15px;
-    background: #000;
-}
-
-#canvas {
-    display: none;
-}
-
-#captureBtn {
-    display: none;
-    margin-top: 15px;
-    background: var(--color-success);
-}
-
-#captureBtn:hover:not(:disabled) {
-    background: #15803d;
-}
-
-img {
-    width: 100%;
-    margin-top: 15px;
-    border-radius: 12px;
-    border: 2px solid var(--color-border);
-}
-
-.success {
-    color: var(--color-success);
 }
 
 .error {
