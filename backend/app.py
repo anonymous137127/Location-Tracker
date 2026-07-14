@@ -6,8 +6,7 @@ import os
 
 app = Flask(__name__)
 
-# Allow requests from any origin.
-# For production, you can replace "*" with your Netlify domain.
+# Allow all origins (for production, consider restricting this to your Netlify domain)
 CORS(app)
 
 # MongoDB Connection
@@ -42,9 +41,12 @@ def save_location():
                 "message": "No JSON data received."
             }), 400
 
+        latitude = data.get("latitude")
+        longitude = data.get("longitude")
+
         location = {
-            "latitude": data.get("latitude"),
-            "longitude": data.get("longitude"),
+            "latitude": latitude,
+            "longitude": longitude,
             "accuracy": data.get("accuracy"),
             "timestamp": data.get("timestamp"),
             "received_at": datetime.utcnow().isoformat() + "Z",
@@ -52,7 +54,8 @@ def save_location():
                 "X-Forwarded-For",
                 request.remote_addr
             ),
-            "user_agent": request.headers.get("User-Agent")
+            "user_agent": request.headers.get("User-Agent"),
+            "google_maps": f"https://www.google.com/maps?q={latitude},{longitude}"
         }
 
         result = locations_collection.insert_one(location)
@@ -65,11 +68,12 @@ def save_location():
         return jsonify({
             "success": True,
             "message": "Location saved successfully.",
-            "id": str(result.inserted_id)
+            "id": str(result.inserted_id),
+            "google_maps": location["google_maps"]
         })
 
     except Exception as e:
-        print(str(e), flush=True)
+        print(e, flush=True)
 
         return jsonify({
             "success": False,
@@ -92,7 +96,11 @@ def get_locations():
             "timestamp": doc.get("timestamp"),
             "received_at": doc.get("received_at"),
             "ip_address": doc.get("ip_address"),
-            "user_agent": doc.get("user_agent")
+            "user_agent": doc.get("user_agent"),
+            "google_maps": doc.get(
+                "google_maps",
+                f"https://www.google.com/maps?q={doc.get('latitude')},{doc.get('longitude')}"
+            )
         })
 
     return jsonify({
