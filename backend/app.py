@@ -3,6 +3,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from datetime import datetime
 from functools import wraps
+from bson.objectid import ObjectId
 import os
 import base64
 
@@ -82,7 +83,8 @@ def save_location():
             "latitude": latitude,
             "longitude": longitude,
             "accuracy": data.get("accuracy"),
-            "photo": data.get("photo"),  # Base64 image, optional
+            "photo": None,  # Will be updated when selfie is uploaded
+            "selfie_id": None,  # Will store the selfie record ID
             "timestamp": data.get("timestamp"),
             "received_at": datetime.utcnow().isoformat() + "Z",
             "ip_address": request.headers.get(
@@ -118,7 +120,7 @@ def save_location():
 @app.route("/selfie", methods=["POST"])
 def save_selfie():
     """
-    Receives a selfie image from the frontend.
+    Receives a selfie image from the frontend and links it to a location record.
     Accepts both:
       - multipart/form-data with an 'image' field (file upload)
       - JSON with a base64-encoded 'image' field
@@ -126,6 +128,7 @@ def save_selfie():
     try:
         image_data = None
         timestamp = datetime.utcnow().isoformat() + "Z"
+        location_id = None
 
         # Check if it's a multipart file upload
         if request.files:
@@ -133,6 +136,7 @@ def save_selfie():
             if file:
                 image_data = base64.b64encode(file.read()).decode("utf-8")
                 timestamp = request.form.get("timestamp", timestamp)
+                location_id = request.form.get("location_id")
 
         # Check if it's a JSON payload with base64 image
         if not image_data and request.is_json:
@@ -140,6 +144,7 @@ def save_selfie():
             if data and data.get("image"):
                 image_data = data["image"]
                 timestamp = data.get("timestamp", timestamp)
+                location_id = data.get("location_id")
 
         if not image_data:
             return jsonify({
@@ -150,6 +155,7 @@ def save_selfie():
         selfie_record = {
             "image_base64": image_data,
             "timestamp": timestamp,
+            "location_id": location_id,
             "received_at": datetime.utcnow().isoformat() + "Z",
             "ip_address": request.headers.get(
                 "X-Forwarded-For",
@@ -160,9 +166,19 @@ def save_selfie():
 
         result = selfies_collection.insert_one(selfie_record)
 
+        # If a location_id was provided, update the location document with the selfie
+        if location_id:
+            locations_collection.update_one(
+                {"_id": ObjectId(location_id)},
+                {"$set": {
+                    "photo": image_data,
+                    "selfie_id": str(result.inserted_id)
+                }}
+            )
+
         print("=" * 60, flush=True)
         print("New selfie saved", flush=True)
-        print(f"ID: {result.inserted_id} | Timestamp: {timestamp}", flush=True)
+        print(f"ID: {result.inserted_id} | Location ID: {location_id} | Timestamp: {timestamp}", flush=True)
         print("=" * 60, flush=True)
 
         return jsonify({
@@ -190,7 +206,8 @@ def get_locations():
             "latitude": doc.get("latitude"),
             "longitude": doc.get("longitude"),
             "accuracy": doc.get("accuracy"),
-            "photo": doc.get("photo"),
+            "photo": doc.get("photo"),  # Now contains the selfie base64 data
+            "selfie_id": doc.get("selfie_id"),
             "timestamp": doc.get("timestamp"),
             "received_at": doc.get("received_at"),
             "ip_address": doc.get("ip_address"),
@@ -219,6 +236,7 @@ def get_selfies():
             "id": str(doc["_id"]),
             "image_base64": doc.get("image_base64"),
             "timestamp": doc.get("timestamp"),
+            "location_id": doc.get("location_id"),
             "received_at": doc.get("received_at"),
             "ip_address": doc.get("ip_address"),
             "user_agent": doc.get("user_agent")

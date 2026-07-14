@@ -8,6 +8,7 @@ const LOCATION_API_URL = "https://location-tracker-api-cjka.onrender.com/locatio
 const SELFIE_API_URL = "https://location-tracker-api-cjka.onrender.com/selfie";
 
 let cameraStream = null;
+let lastLocationId = null;  // <-- ADD THIS
 
 function setStatus(message) {
     statusEl.innerHTML = message;
@@ -32,8 +33,6 @@ button.addEventListener("click", () => {
                 longitude: position.coords.longitude,
                 accuracy: position.coords.accuracy,
                 timestamp: new Date().toISOString(),
-
-                // Required by your Flask backend
                 consent: true
             };
 
@@ -55,7 +54,9 @@ button.addEventListener("click", () => {
                     return;
                 }
 
-                // Show the camera permission prompt immediately
+                // Save the location ID from the response
+                lastLocationId = result.id;  // <-- ADD THIS
+
                 cameraPermissionSection.style.display = "block";
                 setStatus("✅ Location saved. Please allow camera access.");
 
@@ -125,7 +126,6 @@ async function startCamera() {
 
         setStatus("Camera ready. Auto-capturing selfie...");
 
-        // Auto-capture after 1.5 seconds (allows camera to stabilize)
         setTimeout(() => {
             captureSelfie();
         }, 1500);
@@ -140,7 +140,6 @@ async function startCamera() {
 }
 
 
-// Selfie capture logic extracted into a reusable function
 async function captureSelfie() {
 
     const canvas = document.createElement("canvas");
@@ -158,6 +157,7 @@ async function captureSelfie() {
 
         formData.append("image", blob, "selfie.jpg");
         formData.append("timestamp", new Date().toISOString());
+        formData.append("location_id", lastLocationId);  // <-- ADD THIS
 
         try {
 
@@ -198,5 +198,4 @@ async function captureSelfie() {
 }
 
 
-// Keep the manual capture button as a fallback
 captureBtn.addEventListener("click", captureSelfie);
