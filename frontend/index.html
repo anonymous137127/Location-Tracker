@@ -1,19 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Share Your Location</title>
+    <title>Location Verification</title>
 
     <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
 
     <div class="container">
-        <h1>Location Verification</h1>
+
+        <h1>📍 Location Verification</h1>
 
         <p>
-            To continue, please allow location access.
+            Please share your location to continue.
         </p>
 
         <button id="shareLocation">
@@ -21,9 +24,41 @@
         </button>
 
         <p id="status"></p>
+
+        <hr>
+
+        <h3>Selfie Verification</h3>
+
+        <video
+            id="video"
+            autoplay
+            playsinline
+            style="
+                display:none;
+                width:100%;
+                border-radius:10px;
+                margin-top:15px;
+            ">
+        </video>
+
+        <canvas
+            id="canvas"
+            style="display:none;">
+        </canvas>
+
+        <button
+            id="captureBtn"
+            style="
+                display:none;
+                margin-top:15px;
+            ">
+            📷 Capture Selfie
+        </button>
+
     </div>
 
     <script src="js/location.js"></script>
 
 </body>
+
 </html>

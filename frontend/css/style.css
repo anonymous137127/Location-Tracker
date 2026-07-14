@@ -1,63 +1,203 @@
+:root {
+    --color-primary: #2563eb;
+    --color-primary-hover: #1d4ed8;
+    --color-primary-dark: #1e3a8a;
+    --color-success: #16a34a;
+    --color-error: #dc2626;
+    --color-text: #1f2937;
+    --color-text-muted: #6b7280;
+    --color-border: #e5e7eb;
+    --color-disabled: #9ca3af;
+    --radius-lg: 14px;
+    --radius-md: 10px;
+    --shadow-card: 0 20px 45px rgba(30, 58, 138, 0.18);
+}
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: Arial, Helvetica, sans-serif;
 }
 
 body {
-    background: #f4f6f9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(circle at top left, #4f46e5, #1e3a8a 65%);
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    min-height: 100vh;
     padding: 20px;
+    color: var(--color-text);
 }
 
 .container {
-    background: white;
     width: 420px;
     max-width: 100%;
-    padding: 35px;
-    border-radius: 12px;
+    background: #ffffff;
+    padding: 32px 30px;
+    border-radius: var(--radius-lg);
     text-align: center;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    box-shadow: var(--shadow-card);
+    animation: rise 0.4s ease;
+}
+
+@keyframes rise {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 h1 {
-    margin-bottom: 15px;
-    color: #222;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #111827;
+    margin-bottom: 10px;
+}
+
+h3 {
+    margin-top: 22px;
+    margin-bottom: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #374151;
 }
 
 p {
-    color: #666;
-    margin-bottom: 20px;
+    color: var(--color-text-muted);
+    font-size: 14.5px;
     line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+/* Consent notice + checkbox */
+.consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    text-align: left;
+    background: #f8fafc;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    margin-bottom: 20px;
+}
+
+.consent input[type="checkbox"] {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    accent-color: var(--color-primary);
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.consent label {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #374151;
+    cursor: pointer;
 }
 
 button {
     width: 100%;
     padding: 14px;
-    font-size: 16px;
     border: none;
-    border-radius: 8px;
-    background: #007bff;
-    color: white;
+    border-radius: var(--radius-md);
+    font-size: 16px;
+    font-weight: 600;
     cursor: pointer;
-    transition: 0.3s;
+    color: white;
+    background: var(--color-primary);
+    transition: background 0.2s ease, transform 0.1s ease;
 }
 
-button:hover {
-    background: #0056b3;
+button:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+}
+
+button:active:not(:disabled) {
+    transform: scale(0.98);
 }
 
 button:disabled {
-    background: #888;
+    background: var(--color-disabled);
     cursor: not-allowed;
+}
+
+button:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 2px;
 }
 
 #status {
     margin-top: 20px;
-    font-weight: bold;
-    color: green;
+    font-weight: 600;
+    font-size: 14.5px;
+    color: var(--color-success);
+    word-wrap: break-word;
+    min-height: 20px;
+    transition: color 0.2s ease;
+}
+
+hr {
+    margin: 25px 0;
+    border: none;
+    border-top: 1px solid var(--color-border);
+}
+
+#video {
+    width: 100%;
+    border-radius: 12px;
+    border: 3px solid var(--color-primary);
+    display: none;
+    margin-top: 15px;
+    background: #000;
+}
+
+#canvas {
+    display: none;
+}
+
+#captureBtn {
+    display: none;
+    margin-top: 15px;
+    background: var(--color-success);
+}
+
+#captureBtn:hover:not(:disabled) {
+    background: #15803d;
+}
+
+img {
+    width: 100%;
+    margin-top: 15px;
+    border-radius: 12px;
+    border: 2px solid var(--color-border);
+}
+
+.success {
+    color: var(--color-success);
+}
+
+.error {
+    color: var(--color-error);
+}
+
+.loading {
+    color: var(--color-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .container {
+        animation: none;
+    }
+    button, #status {
+        transition: none;
+    }
 }

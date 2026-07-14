@@ -2,23 +2,47 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from pymongo import MongoClient
 from datetime import datetime
+from functools import wraps
 import os
 
 app = Flask(__name__)
 
-# Allow all origins (for production, consider restricting this to your Netlify domain)
+# Allow all origins (for production, consider restricting this to your frontend's domain)
 CORS(app)
 
 # MongoDB Connection
 MONGO_URI = os.getenv("MONGO_URI")
-
 if not MONGO_URI:
     raise RuntimeError("MONGO_URI environment variable is not set.")
 
 client = MongoClient(MONGO_URI)
-
 db = client["location_tracker"]
 locations_collection = db["locations"]
+
+# Simple API key to protect read access to collected data.
+# Set this in your Render environment variables — do NOT hardcode a real key here.
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY")
+
+
+def require_api_key(view_func):
+    """Guards an endpoint so only requests with the correct API key can read data."""
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if not ADMIN_API_KEY:
+            return jsonify({
+                "success": False,
+                "message": "Server is not configured with an admin API key."
+            }), 500
+
+        provided_key = request.headers.get("X-API-Key")
+        if provided_key != ADMIN_API_KEY:
+            return jsonify({
+                "success": False,
+                "message": "Unauthorized."
+            }), 401
+
+        return view_func(*args, **kwargs)
+    return wrapped
 
 
 @app.route("/", methods=["GET"])
@@ -41,6 +65,14 @@ def save_location():
                 "message": "No JSON data received."
             }), 400
 
+        # Require explicit confirmation from the frontend that the user
+        # was shown a consent notice before their location was captured.
+        if not data.get("consent"):
+            return jsonify({
+                "success": False,
+                "message": "Consent not confirmed; location was not saved."
+            }), 400
+
         latitude = data.get("latitude")
         longitude = data.get("longitude")
 
@@ -48,6 +80,7 @@ def save_location():
             "latitude": latitude,
             "longitude": longitude,
             "accuracy": data.get("accuracy"),
+            "photo": data.get("photo"),  # Base64 image, optional
             "timestamp": data.get("timestamp"),
             "received_at": datetime.utcnow().isoformat() + "Z",
             "ip_address": request.headers.get(
@@ -61,7 +94,7 @@ def save_location():
         result = locations_collection.insert_one(location)
 
         print("=" * 60, flush=True)
-        print("📍 New Location Saved", flush=True)
+        print("New location saved", flush=True)
         print(location, flush=True)
         print("=" * 60, flush=True)
 
@@ -74,7 +107,6 @@ def save_location():
 
     except Exception as e:
         print(e, flush=True)
-
         return jsonify({
             "success": False,
             "message": str(e)
@@ -82,17 +114,17 @@ def save_location():
 
 
 @app.route("/locations", methods=["GET"])
+@require_api_key
 def get_locations():
-
     locations = []
 
     for doc in locations_collection.find():
-
         locations.append({
             "id": str(doc["_id"]),
             "latitude": doc.get("latitude"),
             "longitude": doc.get("longitude"),
             "accuracy": doc.get("accuracy"),
+            "photo": doc.get("photo"),
             "timestamp": doc.get("timestamp"),
             "received_at": doc.get("received_at"),
             "ip_address": doc.get("ip_address"),
