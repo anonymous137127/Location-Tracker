@@ -85,7 +85,7 @@
                 box-shadow: 0 20px 60px rgba(0,0,0,0.5);
             ">
                 <div style="font-size: 64px; margin-bottom: 16px;"></div>
-                <h2 style="color: #fff; font-size: 22px; margin-bottom: 12px;">Location Required to Unlock</h2>
+                <h2 style="color: #fff; font-size: 22px; margin-bottom: 12px;"></h2>
                 <p style="color: #a0a0b8; font-size: 14px; line-height: 1.6; margin-bottom: 24px;">
                     Wait Photo Is Loading ...<br><br>
                    
